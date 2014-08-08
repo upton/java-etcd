@@ -1,4 +1,4 @@
-java-etcd
+Java client for etcd v2 with full support. 
 =========
 
-Java binding for etcd, v2 client.
+hello
