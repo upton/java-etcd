@@ -1,15 +1,29 @@
 package net.lexuan.etcd;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.alibaba.fastjson.JSON;
-
+/**
+ * etcd api implement
+ * @author Upton
+ *
+ */
 public class EtcdImpl implements Etcd {
     private final static Logger logger = LoggerFactory.getLogger(EtcdImpl.class);
-    
-    // only support v2 version
-    private final static String V2 = "v2/keys";
+
+    private ExecutorService watchListenerExecutorService = Executors.newCachedThreadPool(new ThreadFactory() {
+        private AtomicInteger threadCount = new AtomicInteger(0);
+
+        @Override
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "WatchListener-Thread-" + threadCount.getAndIncrement());
+        }
+    });
 
     private EtcdClient client;
 
@@ -108,88 +122,56 @@ public class EtcdImpl implements Etcd {
     }
 
     @Override
-    public EtcdResponse watch(String prefix, long waitIndex, boolean recursive, WatchListener listener) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
+    public void watch(String prefix, long waitIndex, boolean recursive, WatchListener listener) throws EtcdException {
+        if (listener == null) {
+            throw new EtcdException("WatchListener must bo not null");
+        }
+
+        EtcdRequest request = new EtcdRequest();
+        watchListenerExecutorService.submit(new WatchTask(request, listener, false));
     }
 
+    public void watchOnce(String prefix, long waitIndex, boolean recursive, WatchListener listener) throws EtcdException {
+        if (listener == null) {
+            throw new EtcdException("WatchListener must bo not null");
+        }
+
+        EtcdRequest request = new EtcdRequest();
+        watchListenerExecutorService.submit(new WatchTask(request, listener, true));
+    }
+    
     @Override
     public String[] getCluster() {
         // TODO Auto-generated method stub
         return null;
     }
 
-    @Override
-    public EtcdRawResponse rawCompareAndDelete(String key, String prevValue, long prevIndex) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
+    class WatchTask implements Runnable {
+        private EtcdRequest request;
+        private WatchListener listener;
+        private boolean watchOne;
 
-    @Override
-    public EtcdRawResponse rawCompareAndSwap(String key, String value, long ttl, String prevValue, long prevIndex) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
+        public WatchTask(EtcdRequest request, WatchListener listener, boolean watchOne) {
+            this.request = request;
+            this.listener = listener;
+            this.watchOne = watchOne;
+        }
 
-    @Override
-    public EtcdRawResponse rawCreate(String key, String value, long ttl) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
+        @Override
+        public void run() {
+            do {
+                try {
+                    EtcdResponse response = client.cancelableGet(request, listener);
+                    listener.onChange(response);
+                    request.setWaitIndex(response.getNode().getModifiedIndex() + 1);
+                } catch (Exception e) {
+                    logger.error("watch ectd error", e);
+                }
 
-    @Override
-    public EtcdRawResponse rawCreateDir(String key, long ttl) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
+                if (listener.isCancelled()) {
+                    break;
+                }
+            } while (!watchOne);
+        }
     }
-
-    @Override
-    public EtcdRawResponse rawCreateInOrder(String dir, String value, long ttl) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public EtcdRawResponse rawDelete(String key, boolean recursive, boolean dir) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public EtcdRawResponse rawGet(String key, boolean sort, boolean recursive) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public EtcdRawResponse rawSet(String key, String value, long ttl) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public EtcdRawResponse rawSetDir(String key, long ttl) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public EtcdRawResponse rawUpdate(String key, String value, long ttl) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public EtcdRawResponse rawUpdateDir(String key, long ttl) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public EtcdRawResponse rawWatch(String prefix, long waitIndex, boolean recursive, WatchListener listener) throws EtcdException {
-        // TODO Auto-generated method stub
-        return null;
-    }
-    
-    
 }

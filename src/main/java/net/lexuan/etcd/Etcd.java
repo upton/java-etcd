@@ -31,31 +31,7 @@ public interface Etcd {
 
     EtcdResponse updateDir(String key, long ttl) throws EtcdException;
 
-    EtcdResponse watch(String prefix, long waitIndex, boolean recursive, WatchListener listener) throws EtcdException;
+    void watch(String prefix, long waitIndex, boolean recursive, WatchListener listener) throws EtcdException;
 
     String[] getCluster();
-
-    EtcdRawResponse rawCompareAndDelete(String key, String prevValue, long prevIndex) throws EtcdException;
-
-    EtcdRawResponse rawCompareAndSwap(String key, String value, long ttl, String prevValue, long prevIndex) throws EtcdException;
-
-    EtcdRawResponse rawCreate(String key, String value, long ttl) throws EtcdException;
-
-    EtcdRawResponse rawCreateDir(String key, long ttl) throws EtcdException;
-
-    EtcdRawResponse rawCreateInOrder(String dir, String value, long ttl) throws EtcdException;
-
-    EtcdRawResponse rawDelete(String key, boolean recursive, boolean dir) throws EtcdException;
-
-    EtcdRawResponse rawGet(String key, boolean sort, boolean recursive) throws EtcdException;
-
-    EtcdRawResponse rawSet(String key, String value, long ttl) throws EtcdException;
-
-    EtcdRawResponse rawSetDir(String key, long ttl) throws EtcdException;
-
-    EtcdRawResponse rawUpdate(String key, String value, long ttl) throws EtcdException;
-
-    EtcdRawResponse rawUpdateDir(String key, long ttl) throws EtcdException;
-
-    EtcdRawResponse rawWatch(String prefix, long waitIndex, boolean recursive, WatchListener listener) throws EtcdException;
 }
