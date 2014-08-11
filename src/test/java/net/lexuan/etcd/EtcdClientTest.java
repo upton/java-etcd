@@ -16,7 +16,7 @@ import org.junit.Test;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
-public class SmokeTest {
+public class EtcdClientTest {
 	String prefix;
 	EtcdClient client;
 
