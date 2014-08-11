@@ -1,7 +1,5 @@
 package net.lexuan.etcd;
 
-import java.net.URI;
-
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
@@ -10,26 +8,26 @@ import org.slf4j.LoggerFactory;
 
 public class EtcdClient {
     private final static Logger logger = LoggerFactory.getLogger(EtcdClient.class);
+    private long dialTimeout = 3000;
     
     private CloseableHttpAsyncClient httpClient;
-    private URI baseUri;
+    private String[] machines;
 
-    public EtcdClient(String baseUrl) {
-        if (baseUrl == null) {
-            throw new RuntimeException("url must not null.");
+    public EtcdClient(String[] machines) {
+        if (machines == null || machines.length <= 0) {
+            throw new RuntimeException("machines must not null && with less one machine string.");
         }
 
-        if (!baseUrl.endsWith("/")) {
-            baseUrl += "/";
-        }
-
-        this.baseUri = URI.create(baseUrl);
-
+        this.machines = machines;
         RequestConfig requestConfig = RequestConfig.custom().build();
         CloseableHttpAsyncClient httpClient = HttpAsyncClients.custom().setDefaultRequestConfig(requestConfig).build();
-        httpClient.start();
     }
 
+    public EtcdClient setDialTimeout(long timeout){
+        dialTimeout = timeout;
+        return this;
+    }
+    
     public String get(String url) {
         return null;
     }
