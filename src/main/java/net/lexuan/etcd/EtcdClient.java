@@ -1,16 +1,14 @@
 package net.lexuan.etcd;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -27,20 +25,23 @@ import com.google.common.util.concurrent.SettableFuture;
 public class EtcdClient {
     private final static Logger logger = LoggerFactory.getLogger(EtcdClient.class);
 
+    private final static Random RD = new Random();
+
     // only support v2 version
     private final static String VERSION = "v2";
 
     private long dialTimeout = 3000L;
 
     private CloseableHttpAsyncClient httpClient;
-    private String[] machines;
+    private Cluster cluster;
 
     public EtcdClient(String[] machines) {
         if (machines == null || machines.length <= 0) {
             throw new RuntimeException("machines must not null && with less one machine string.");
         }
 
-        this.machines = machines;
+        cluster = new Cluster(machines);
+
         RequestConfig requestConfig = RequestConfig.custom().build();
         httpClient = HttpAsyncClients.custom().setDefaultRequestConfig(requestConfig).build();
     }
@@ -68,77 +69,71 @@ public class EtcdClient {
 
     /**
      * cancelable get request for watch operation
+     * 
      * @param etcdRequest
      * @param listener
      * @return
      * @throws EtcdException
      */
     public EtcdResponse cancelableGet(EtcdRequest etcdRequest, WatchListener listener) throws EtcdException {
-        HttpUriRequest request = buildUriRequest(etcdRequest);
+        HttpGet request = new HttpGet(getHttpPath(etcdRequest));
 
         listener.setRequest(request);
-        return syncExecute(request);
+        return sendRequest(request);
+    }
+
+    private String getHttpPath(boolean random, String path) {
+        String machine;
+
+        if (random) {
+            machine = cluster.getMachines()[RD.nextInt(cluster.getMachines().length)];
+        } else {
+            machine = cluster.getLeader();
+        }
+
+        String fullPath = machine + "/" + VERSION + path;
+
+        return fullPath;
     }
 
     /**
-     * async resquest the etcd with future return
+     * Send request to etcd. Use the HttpAsyncClient
      * 
      * @param request
-     * @return
+     * @return EtcdResponse
      * @throws EtcdException
      */
-    private ListenableFuture<EtcdResponse> asyncExecute(HttpUriRequest request) throws EtcdException {
-        ListenableFuture<HttpResponse> httpResponse = asyncExecuteHttp(request);
-        return Futures.transform(httpResponse, new AsyncFunction<HttpResponse, EtcdResponse>() {
-            public ListenableFuture<EtcdResponse> apply(HttpResponse httpResponse) throws Exception {
-                EtcdResponse result = readHttpResponse(httpResponse);
-                return Futures.immediateFuture(result);
-            }
-        });
-    }
-
-    /**
-     * sync request the etcd with response return
-     * 
-     * @param request
-     * @return
-     * @throws EtcdException
-     */
-    private EtcdResponse syncExecute(HttpUriRequest request) throws EtcdException {
+    private EtcdResponse sendRequest(HttpUriRequest request) throws EtcdException {
         try {
-            return asyncExecute(request).get();
+            final SettableFuture<HttpResponse> future = SettableFuture.create();
+
+            httpClient.execute(request, new FutureCallback<HttpResponse>() {
+                public void completed(HttpResponse result) {
+                    future.set(result);
+                }
+
+                public void failed(Exception ex) {
+                    future.setException(ex);
+                }
+
+                public void cancelled() {
+                    future.setException(new InterruptedException());
+                }
+            });
+
+            return Futures.transform(future, new AsyncFunction<HttpResponse, EtcdResponse>() {
+                public ListenableFuture<EtcdResponse> apply(HttpResponse httpResponse) throws Exception {
+                    EtcdResponse result = readHttpResponse(httpResponse);
+                    return Futures.immediateFuture(result);
+                }
+            }).get();
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new EtcdException("Interrupted during request", e);
         } catch (ExecutionException e) {
             throw new EtcdException("ExecutionException during request", e);
         }
-    }
-
-    /**
-     * async to request the etcd
-     * 
-     * @param request
-     * @return the ListenableFuture
-     */
-    private ListenableFuture<HttpResponse> asyncExecuteHttp(HttpUriRequest request) {
-        final SettableFuture<HttpResponse> future = SettableFuture.create();
-
-        httpClient.execute(request, new FutureCallback<HttpResponse>() {
-            public void completed(HttpResponse result) {
-                future.set(result);
-            }
-
-            public void failed(Exception ex) {
-                future.setException(ex);
-            }
-
-            public void cancelled() {
-                future.setException(new InterruptedException());
-            }
-        });
-
-        return future;
     }
 
     /**
@@ -181,10 +176,6 @@ public class EtcdClient {
      * @return
      */
     private EtcdResponse parseJson(String json, int statusCode) {
-        return null;
-    }
-
-    private HttpUriRequest buildUriRequest(EtcdRequest etcdRequest) {
         return null;
     }
 
